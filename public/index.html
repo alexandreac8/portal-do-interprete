@@ -30,36 +30,38 @@
 
     /* HEADER */
     header {
-      background: var(--verde);
+      background: #5F24E0;
       padding: 0 16px;
     }
 
     nav {
       max-width: 1100px;
       margin: 0 auto;
-      display: flex;
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
       align-items: center;
       height: 56px;
     }
 
-    .logo {
-      font-family: 'DM Serif Display', serif;
-      color: #fff;
-      font-size: 1.15rem;
-      letter-spacing: -0.3px;
+    .logo-img {
+      height: 28px;
+      width: auto;
+      object-fit: contain;
+      filter: brightness(0) invert(1);
+      opacity: 0.9;
     }
 
-    .logo span {
-      opacity: 0.7;
-      font-size: 0.82rem;
-      font-family: 'DM Sans', sans-serif;
-      font-weight: 300;
-      margin-left: 8px;
+    .nav-titulo {
+      font-family: 'DM Serif Display', serif;
+      color: #fff;
+      font-size: 1.05rem;
+      letter-spacing: -0.2px;
+      white-space: nowrap;
     }
 
     /* HERO */
     .hero {
-      background: var(--verde);
+      background: #5F24E0;
       padding: 32px 16px 48px;
       text-align: center;
       position: relative;
@@ -340,7 +342,9 @@
 
 <header>
   <nav>
-    <div class="logo">Portal do Intérprete <span>Libras</span></div>
+    <img class="logo-img" src="/logo.png" alt="Academia de Libras" />
+    <span class="nav-titulo">Portal do Intérprete</span>
+    <div></div>
   </nav>
 </header>
 
