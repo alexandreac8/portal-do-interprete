@@ -5,11 +5,12 @@ export const config = { maxDuration: 60 };
 const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
 const REPO = "alexandreac8/portal-do-interprete";
 const FILE_PATH = "data/vagas.json";
+const BRANCH = "master";
 
 async function salvarNoGitHub(dados) {
   const conteudo = Buffer.from(JSON.stringify(dados, null, 2)).toString("base64");
   // buscar SHA atual do arquivo
-  const getRes = await fetch(`https://api.github.com/repos/${REPO}/contents/${FILE_PATH}`, {
+  const getRes = await fetch(`https://api.github.com/repos/${REPO}/contents/${FILE_PATH}?ref=${BRANCH}`, {
     headers: { Authorization: `Bearer ${GITHUB_TOKEN}`, Accept: "application/vnd.github+json" }
   });
   let sha = undefined;
@@ -17,7 +18,7 @@ async function salvarNoGitHub(dados) {
     const existing = await getRes.json();
     sha = existing.sha;
   }
-  const body = { message: `vagas: atualizar ${dados.atualizado}`, content: conteudo };
+  const body = { message: `vagas: atualizar ${dados.atualizado}`, content: conteudo, branch: BRANCH };
   if (sha) body.sha = sha;
   const putRes = await fetch(`https://api.github.com/repos/${REPO}/contents/${FILE_PATH}`, {
     method: "PUT",

@@ -1,4 +1,4 @@
-const RAW_URL = "https://raw.githubusercontent.com/alexandreac8/portal-do-interprete/main/data/vagas.json";
+const RAW_URL = "https://raw.githubusercontent.com/alexandreac8/portal-do-interprete/master/data/vagas.json";
 
 export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
