@@ -40,7 +40,7 @@ export default async function handler(req, res) {
       max_tokens: 2000,
       tools: [{ type: "web_search_20250305", name: "web_search" }],
       system: `Você busca vagas de emprego na área de Libras no Brasil usando busca web. Retorne SOMENTE um JSON válido, sem markdown, sem texto extra. Formato exato: {"vagas":[{"titulo":"cargo","empresa":"nome","local":"cidade ou Remoto","modalidade":"presencial|remoto|híbrido","descricao":"descrição em 1-2 linhas","link":"url","data":"data de publicação"}],"atualizado":"${hoje}","total":0}`,
-      messages: [{ role: "user", content: `Busque hoje (${hoje}) vagas de emprego, estágios e freelancer na área de Libras no Brasil. Pesquise em LinkedIn, Indeed, Catho, Infojobs, sites de prefeituras e institutos federais. Termos: intérprete de Libras, professor de Libras, instrutor de Libras, instrutor surdo, tradutor Libras. Traga no mínimo 10 vagas reais e atuais. Retorne SOMENTE o JSON.` }]
+      messages: [{ role: "user", content: `Busque hoje (${hoje}) vagas de emprego, estágios e freelancer na área de Libras no Brasil. IMPORTANTE: inclua SOMENTE vagas publicadas nos últimos 2 meses (de ${hoje} para trás). Descarte qualquer vaga mais antiga. Pesquise em LinkedIn, Indeed, Catho, Infojobs, sites de prefeituras e institutos federais. Termos: intérprete de Libras, professor de Libras, instrutor de Libras, instrutor surdo, tradutor Libras. Traga no mínimo 10 vagas reais e recentes. Retorne SOMENTE o JSON.` }]
     });
     let textoFinal = "";
     for (const block of response.content) {
