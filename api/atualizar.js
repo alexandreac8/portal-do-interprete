@@ -1,6 +1,32 @@
 import Anthropic from "@anthropic-ai/sdk";
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 export const config = { maxDuration: 60 };
+
+const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
+const REPO = "alexandreac8/portal-do-interprete";
+const FILE_PATH = "data/vagas.json";
+
+async function salvarNoGitHub(dados) {
+  const conteudo = Buffer.from(JSON.stringify(dados, null, 2)).toString("base64");
+  // buscar SHA atual do arquivo
+  const getRes = await fetch(`https://api.github.com/repos/${REPO}/contents/${FILE_PATH}`, {
+    headers: { Authorization: `Bearer ${GITHUB_TOKEN}`, Accept: "application/vnd.github+json" }
+  });
+  let sha = undefined;
+  if (getRes.ok) {
+    const existing = await getRes.json();
+    sha = existing.sha;
+  }
+  const body = { message: `vagas: atualizar ${dados.atualizado}`, content: conteudo };
+  if (sha) body.sha = sha;
+  const putRes = await fetch(`https://api.github.com/repos/${REPO}/contents/${FILE_PATH}`, {
+    method: "PUT",
+    headers: { Authorization: `Bearer ${GITHUB_TOKEN}`, "Content-Type": "application/json", Accept: "application/vnd.github+json" },
+    body: JSON.stringify(body)
+  });
+  if (!putRes.ok) throw new Error(`GitHub API error: ${putRes.status}`);
+}
+
 export default async function handler(req, res) {
   const auth = req.headers["authorization"];
   const cronHeader = req.headers["x-vercel-cron"];
@@ -25,8 +51,7 @@ export default async function handler(req, res) {
     if (start === -1 || end === -1) throw new Error("JSON não encontrado");
     const dados = JSON.parse(textoFinal.slice(start, end + 1));
     dados.total = dados.vagas?.length || 0;
-    const { kv } = await import("@vercel/kv");
-    await kv.set("vagas_libras", JSON.stringify(dados));
+    await salvarNoGitHub(dados);
     return res.status(200).json({ ok: true, total: dados.total, atualizado: dados.atualizado });
   } catch (err) {
     return res.status(500).json({ error: err.message });
