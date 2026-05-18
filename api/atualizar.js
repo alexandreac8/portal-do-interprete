@@ -5,7 +5,7 @@ const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 export const config = { maxDuration: 300 };
 
 const BLOB_KEY = "vagas.json";
-const META_VAGAS = 80;
+const META_VAGAS = 30;
 const DIAS_VALIDADE = 30;
 
 // ===== util =====
@@ -74,6 +74,7 @@ async function salvarNoBlob(dados) {
 
 // ===== claude =====
 async function buscarVagas(prompt, hoje) {
+  try {
   const response = await client.messages.create({
     model: "claude-sonnet-4-20250514",
     max_tokens: 4000,
@@ -103,7 +104,12 @@ Regras importantes:
   try {
     const parsed = JSON.parse(texto.slice(start, end + 1));
     return Array.isArray(parsed.vagas) ? parsed.vagas : [];
-  } catch {
+  } catch (e) {
+    console.log("falha parse:", e.message, "| texto recebido (200 chars):", texto.slice(0, 200));
+    return [];
+  }
+  } catch (err) {
+    console.log("falha chamada Claude:", err.message, err.status || "");
     return [];
   }
 }
@@ -132,18 +138,21 @@ export default async function handler(req, res) {
       });
 
     const prompts = [
-      `Hoje é ${hoje}. Busque vagas de INTÉRPRETE DE LIBRAS no Brasil publicadas nos últimos 30 dias. Pesquise em LinkedIn, Indeed, Catho, Vagas.com, Infojobs, Gupy. Traga no mínimo 25 vagas reais, variadas em região (Sul, Sudeste, Nordeste, Centro-Oeste, Norte). Inclua presencial, remoto e híbrido. Retorne SOMENTE o JSON no schema definido.`,
-      `Hoje é ${hoje}. Busque vagas de PROFESSOR DE LIBRAS e INSTRUTOR DE LIBRAS no Brasil publicadas nos últimos 30 dias. Pesquise em sites de prefeituras, IFs, universidades, processos seletivos e concursos. Traga no mínimo 25 vagas reais. Retorne SOMENTE o JSON no schema definido.`,
-      `Hoje é ${hoje}. Busque vagas REMOTAS e FREELANCER para profissionais de Libras (intérprete, tradutor, professor online) publicadas nos últimos 30 dias. Pesquise em sites de emprego remoto, plataformas EAD, Gupy, Vagas.com. Traga no mínimo 20 vagas reais. Retorne SOMENTE o JSON no schema definido.`,
-      `Hoje é ${hoje}. Busque vagas de TRADUTOR DE LIBRAS, intérprete educacional, intérprete jurídico e estágios na área de Libras no Brasil, publicadas nos últimos 30 dias. Pesquise em sites de prefeituras, tribunais, escolas e universidades. Traga no mínimo 20 vagas reais. Retorne SOMENTE o JSON no schema definido.`
+      `Hoje é ${hoje}. Busque vagas de INTÉRPRETE DE LIBRAS, tradutor de Libras e intérprete educacional no Brasil publicadas nos últimos 30 dias. Pesquise em LinkedIn, Indeed, Catho, Vagas.com, Infojobs, Gupy. Traga no mínimo 10 vagas reais, variadas em região. Inclua presencial, remoto e híbrido. Retorne SOMENTE o JSON no schema definido.`,
+      `Hoje é ${hoje}. Busque vagas de PROFESSOR DE LIBRAS, INSTRUTOR DE LIBRAS e processos seletivos/concursos no Brasil publicados nos últimos 30 dias. Pesquise em sites de prefeituras, IFs, universidades e secretarias de educação. Traga no mínimo 10 vagas reais. Retorne SOMENTE o JSON no schema definido.`
     ];
 
     const lotes = await Promise.allSettled(prompts.map(p => buscarVagas(p, hoje)));
+    lotes.forEach((l, i) => {
+      if (l.status === "rejected") console.log(`lote ${i} REJECTED:`, l.reason?.message || l.reason);
+      else console.log(`lote ${i} ok, ${l.value.length} vagas`);
+    });
     const vagasNovas = lotes
       .filter(l => l.status === "fulfilled")
       .flatMap(l => l.value)
       .map(v => ({ ...v, data_iso: parseDataIso(v) }))
       .filter(v => v.data_iso && diasEntre(v.data_iso, hojeIso) <= DIAS_VALIDADE);
+    console.log(`vagasNovas (apos filtro): ${vagasNovas.length} | vagasValidas anteriores: ${vagasValidas.length}`);
 
     const todas = [...vagasValidas, ...vagasNovas];
     const vistos = new Set();
@@ -190,6 +199,7 @@ export default async function handler(req, res) {
       blob_url: url
     });
   } catch (err) {
+    console.error("ERRO handler:", err.message, err.stack);
     return res.status(500).json({ error: err.message, stack: err.stack });
   }
 }
