@@ -73,6 +73,9 @@ async function salvarNoBlob(dados) {
 }
 
 // ===== claude =====
+const DEBUG = { eventos: [] };
+function debug(msg) { DEBUG.eventos.push(msg); }
+
 async function buscarVagas(prompt, hoje) {
   try {
   const response = await client.messages.create({
@@ -95,21 +98,29 @@ Regras importantes:
   });
 
   let texto = "";
+  const tiposBlock = [];
   for (const block of response.content) {
+    tiposBlock.push(block.type);
     if (block.type === "text") texto += block.text;
   }
+  debug({ tipo: "resposta_claude", stop_reason: response.stop_reason, blocks: tiposBlock, texto_inicio: texto.slice(0, 300) });
   const start = texto.indexOf("{");
   const end = texto.lastIndexOf("}");
-  if (start === -1 || end === -1) return [];
+  if (start === -1 || end === -1) {
+    debug({ tipo: "sem_json_no_texto", texto: texto.slice(0, 500) });
+    return [];
+  }
   try {
     const parsed = JSON.parse(texto.slice(start, end + 1));
-    return Array.isArray(parsed.vagas) ? parsed.vagas : [];
+    const vagas = Array.isArray(parsed.vagas) ? parsed.vagas : [];
+    debug({ tipo: "parse_ok", count: vagas.length });
+    return vagas;
   } catch (e) {
-    console.log("falha parse:", e.message, "| texto recebido (200 chars):", texto.slice(0, 200));
+    debug({ tipo: "parse_falhou", erro: e.message, texto: texto.slice(0, 500) });
     return [];
   }
   } catch (err) {
-    console.log("falha chamada Claude:", err.message, err.status || "");
+    debug({ tipo: "chamada_claude_falhou", erro: err.message, status: err.status, name: err.name });
     return [];
   }
 }
@@ -196,7 +207,8 @@ export default async function handler(req, res) {
       novas_encontradas: vagasNovas.length,
       mantidas_anteriores: vagasValidas.length,
       atualizado: dados.atualizado,
-      blob_url: url
+      blob_url: url,
+      debug: DEBUG.eventos
     });
   } catch (err) {
     console.error("ERRO handler:", err.message, err.stack);
