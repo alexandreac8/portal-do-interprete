@@ -79,21 +79,24 @@ function debug(msg) { DEBUG.eventos.push(msg); }
 async function buscarVagas(prompt, hoje) {
   try {
   const response = await client.messages.create({
-    model: "claude-haiku-4-5-20251001",
+    model: "claude-sonnet-4-5",
     max_tokens: 4000,
     tools: [{ type: "web_search_20250305", name: "web_search" }],
-    system: `Você é um caçador de vagas de Libras no Brasil. Use busca web pra encontrar vagas REAIS, publicadas nos últimos 30 dias.
+    system: `Você é um caçador de vagas de Libras no Brasil. Use busca web pra encontrar vagas reais, publicadas nos últimos 30 dias.
 
-Retorne SOMENTE um JSON válido (sem markdown, sem texto extra). Schema:
-{"vagas":[{"titulo":"cargo","empresa":"nome da empresa","local":"Cidade, UF ou Remoto","modalidade":"presencial|remoto|híbrido","descricao":"1-2 linhas claras","link":"url direta da vaga","data":"DD/MM/AAAA","data_iso":"AAAA-MM-DD"}]}
+IMPORTANTE: sua resposta DEVE ser APENAS um JSON válido, nada mais. Sem explicações, sem markdown, sem texto antes ou depois. Se não encontrar vagas perfeitas, traga as melhores que encontrou. É melhor trazer vagas com link da página de listagem do que não trazer nada.
 
-Regras importantes:
-- "data" sempre no formato DD/MM/AAAA (data de publicação real, não a data de hoje)
-- "data_iso" sempre no formato AAAA-MM-DD (mesma data de "data")
-- Se não souber a data exata da vaga, use a data de hoje: ${hoje} (DD/MM) e ${isoHoje()} (ISO)
-- Descarte qualquer vaga com mais de 30 dias
-- O link deve ser direto pra página da vaga, não home do site
-- Não invente vagas. Só inclua as que você realmente encontrou via web search`,
+Schema obrigatório:
+{"vagas":[{"titulo":"cargo","empresa":"nome da empresa","local":"Cidade, UF ou Remoto","modalidade":"presencial|remoto|híbrido","descricao":"1-2 linhas","link":"url","data":"DD/MM/AAAA","data_iso":"AAAA-MM-DD"}]}
+
+Regras:
+- "data" no formato DD/MM/AAAA. Se não souber a data exata, use ${hoje}
+- "data_iso" no formato AAAA-MM-DD (mesma data de "data"). Se não souber, use ${isoHoje()}
+- "link": pode ser a URL específica da vaga OU a URL da página de listagem onde ela aparece
+- Aceite tanto vagas individuais (gupy, infojobs etc) quanto editais de processo seletivo/concurso
+- Não invente vagas: só inclua o que você realmente viu nos resultados de busca
+- Se uma busca não der resultados bons, tente outros termos antes de desistir
+- Sempre retorne o JSON, mesmo que vagas seja array curto. NUNCA retorne texto explicativo`,
     messages: [{ role: "user", content: prompt }]
   });
 
@@ -149,8 +152,10 @@ export default async function handler(req, res) {
       });
 
     const prompts = [
-      `Hoje é ${hoje}. Busque vagas de INTÉRPRETE DE LIBRAS, tradutor de Libras e intérprete educacional no Brasil publicadas nos últimos 30 dias. Pesquise em LinkedIn, Indeed, Catho, Vagas.com, Infojobs, Gupy. Traga no mínimo 10 vagas reais, variadas em região. Inclua presencial, remoto e híbrido. Retorne SOMENTE o JSON no schema definido.`,
-      `Hoje é ${hoje}. Busque vagas de PROFESSOR DE LIBRAS, INSTRUTOR DE LIBRAS e processos seletivos/concursos no Brasil publicados nos últimos 30 dias. Pesquise em sites de prefeituras, IFs, universidades e secretarias de educação. Traga no mínimo 10 vagas reais. Retorne SOMENTE o JSON no schema definido.`
+      `Hoje é ${hoje}. Busque "vaga intérprete de libras" e "tradutor de libras" no Brasil, publicadas nos últimos 30 dias. Pesquise em Gupy, Vagas.com, Infojobs, Catho, LinkedIn, Indeed, sites de empresas de tecnologia assistiva. Traga 10 a 15 vagas reais, variadas em região e modalidade (presencial, remoto, híbrido). Retorne APENAS o JSON conforme schema.`,
+      `Hoje é ${hoje}. Busque "professor de libras" e "instrutor de libras" em concursos públicos e processos seletivos no Brasil dos últimos 30 dias. Pesquise em PCI Concursos, Folha Dirigida, sites de prefeituras, secretarias de educação estaduais, IFs (institutos federais), UFs (universidades federais). Traga 10 a 15 editais reais. Retorne APENAS o JSON.`,
+      `Hoje é ${hoje}. Busque vagas REMOTAS de Libras: intérprete remoto, tradutor de libras EAD, professor online de libras, freelancer libras no Brasil. Publicadas últimos 30 dias. Pesquise em Gupy, Vagas.com, plataformas de EAD (Unicesumar, Ânima, Cogna), Indeed remoto. Traga 8 a 12 vagas remotas reais. Retorne APENAS o JSON.`,
+      `Hoje é ${hoje}. Busque vagas EDUCACIONAIS de libras: intérprete educacional, intérprete escolar, mediador de libras em escolas e universidades brasileiras. Últimos 30 dias. Pesquise sites de secretarias municipais e estaduais de educação, SEDUC, redes privadas de ensino (Ânima Educação, Cogna, Yduqs, Vitru). Traga 8 a 12 vagas reais. Retorne APENAS o JSON.`
     ];
 
     const lotes = await Promise.allSettled(prompts.map(p => buscarVagas(p, hoje)));
