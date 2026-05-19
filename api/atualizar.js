@@ -29,6 +29,40 @@ function diasEntre(isoA, isoB) {
   return Math.round((b - a) / (1000 * 60 * 60 * 24));
 }
 
+// detecta links de páginas de listagem genérica em vez de vaga específica
+function linkEhListagem(link) {
+  if (!link) return true;
+  const u = link.toLowerCase().replace(/\?.*$/, "").replace(/\/$/, "");
+  const padroesRuins = [
+    /pciconcursos\.com\.br\/professores$/,
+    /pciconcursos\.com\.br\/vagas\/[^/]+$/, // /vagas/interprete-de-libras
+    /pciconcursos\.com\.br\/concursos$/,
+    /linkedin\.com\/jobs\/[^/]+-vagas$/,
+    /linkedin\.com\/jobs\/search/,
+    /linkedin\.com\/jobs$/,
+    /indeed\.com\/jobs\?/,
+    /indeed\.com\/q-/,
+    /indeed\.com\/cmp\//, // página da empresa, não vaga específica
+    /catho\.com\.br\/vagas\/[^/]+\/?$/, // ex: catho.com.br/vagas/interprete-de-libras
+    /vagas\.com\.br\/vagas-de-[^/]+\/?$/,
+    /infojobs\.com\.br\/vagas-de-[^/]+\.aspx$/,
+    /gupy\.io\/?$/,
+    /\.gupy\.io\/jobs\/?$/, // home de jobs da empresa
+    /trabalheconosco\.[^/]+\/oportunidades\/?$/,
+    /trabalheconosco\.[^/]+\/?$/,
+    /glassdoor\.[^/]+\/vaga\//, // pesquisa
+    /\/concursos\/?$/,
+    /\/vagas\/?$/,
+    /\/oportunidades\/?$/,
+    /bancodetalentos\..+\/?$/, // home banco talentos sp
+    /sistemas\.[^/]+\/seletivodocente\/?$/
+  ];
+  for (const p of padroesRuins) {
+    if (p.test(u)) return true;
+  }
+  return false;
+}
+
 function parseDataIso(vaga) {
   if (vaga.data_iso && /^\d{4}-\d{2}-\d{2}$/.test(vaga.data_iso)) return vaga.data_iso;
   const raw = (vaga.data || "").trim();
@@ -84,19 +118,33 @@ async function buscarVagas(prompt, hoje) {
     tools: [{ type: "web_search_20250305", name: "web_search" }],
     system: `Você é um caçador de vagas de Libras no Brasil. Use busca web pra encontrar vagas reais, publicadas nos últimos 30 dias.
 
-IMPORTANTE: sua resposta DEVE ser APENAS um JSON válido, nada mais. Sem explicações, sem markdown, sem texto antes ou depois. Se não encontrar vagas perfeitas, traga as melhores que encontrou. É melhor trazer vagas com link da página de listagem do que não trazer nada.
+IMPORTANTE: sua resposta DEVE ser APENAS um JSON válido, nada mais. Sem explicações, sem markdown, sem texto antes ou depois.
 
 Schema obrigatório:
 {"vagas":[{"titulo":"cargo","empresa":"nome da empresa","local":"Cidade, UF ou Remoto","modalidade":"presencial|remoto|híbrido","descricao":"1-2 linhas","link":"url","data":"DD/MM/AAAA","data_iso":"AAAA-MM-DD"}]}
 
-Regras:
-- "data" no formato DD/MM/AAAA. Se não souber a data exata, use ${hoje}
-- "data_iso" no formato AAAA-MM-DD (mesma data de "data"). Se não souber, use ${isoHoje()}
-- "link": pode ser a URL específica da vaga OU a URL da página de listagem onde ela aparece
-- Aceite tanto vagas individuais (gupy, infojobs etc) quanto editais de processo seletivo/concurso
-- Não invente vagas: só inclua o que você realmente viu nos resultados de busca
-- Se uma busca não der resultados bons, tente outros termos antes de desistir
-- Sempre retorne o JSON, mesmo que vagas seja array curto. NUNCA retorne texto explicativo`,
+REGRA CRÍTICA SOBRE LINKS:
+- O link DEVE levar direto pra página de UMA vaga específica ou de UM edital de concurso específico
+- NUNCA use link de página de listagem que mostra várias vagas diferentes
+- EXEMPLOS DE LINKS RUINS (descarte se for assim):
+  • pciconcursos.com.br/professores/ (mostra vários concursos)
+  • pciconcursos.com.br/vagas/interprete-de-libras (mostra vários concursos)
+  • linkedin.com/jobs/interprete-de-libras-vagas (lista de buscas)
+  • indeed.com/jobs?q=libras (busca genérica)
+  • gupy.io/jobs (home da empresa)
+- EXEMPLOS DE LINKS BONS:
+  • pciconcursos.com.br/concurso/prefeitura-de-jardinopolis-sp-5-vagas-tradutor-de-libras-43782
+  • linkedin.com/jobs/view/4365322309
+  • empresa.gupy.io/jobs/8807052
+  • prefeitura.gov.br/concursos/edital-001-2026
+- Se você só consegue achar a vaga numa página de listagem, NÃO inclua essa vaga. É melhor ter menos vagas com links bons do que vagas com links ruins
+- O link tem que abrir a página que descreve APENAS aquela vaga, não um agregador
+
+Outras regras:
+- "data" no formato DD/MM/AAAA. Use a data real de publicação. Se incerto, use ${hoje}
+- "data_iso" no formato AAAA-MM-DD (mesma data de "data"). Se incerto, use ${isoHoje()}
+- Não invente vagas
+- Sempre retorne o JSON, mesmo que o array de vagas seja curto`,
     messages: [{ role: "user", content: prompt }]
   });
 
@@ -147,6 +195,7 @@ export default async function handler(req, res) {
       .map(v => ({ ...v, data_iso: parseDataIso(v) }))
       .filter(v => {
         if (!v.data_iso) return false;
+        if (linkEhListagem(v.link)) return false;
         const idade = diasEntre(v.data_iso, hojeIso);
         return idade >= 0 && idade <= DIAS_VALIDADE;
       });
@@ -167,7 +216,8 @@ export default async function handler(req, res) {
       .filter(l => l.status === "fulfilled")
       .flatMap(l => l.value)
       .map(v => ({ ...v, data_iso: parseDataIso(v) }))
-      .filter(v => v.data_iso && diasEntre(v.data_iso, hojeIso) <= DIAS_VALIDADE);
+      .filter(v => v.data_iso && diasEntre(v.data_iso, hojeIso) <= DIAS_VALIDADE)
+      .filter(v => !linkEhListagem(v.link));
     console.log(`vagasNovas (apos filtro): ${vagasNovas.length} | vagasValidas anteriores: ${vagasValidas.length}`);
 
     const todas = [...vagasValidas, ...vagasNovas];
