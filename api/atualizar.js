@@ -79,7 +79,7 @@ function debug(msg) { DEBUG.eventos.push(msg); }
 async function buscarVagas(prompt, hoje) {
   try {
   const response = await client.messages.create({
-    model: "claude-sonnet-4-20250514",
+    model: "claude-haiku-4-5-20251001",
     max_tokens: 4000,
     tools: [{ type: "web_search_20250305", name: "web_search" }],
     system: `Você é um caçador de vagas de Libras no Brasil. Use busca web pra encontrar vagas REAIS, publicadas nos últimos 30 dias.
