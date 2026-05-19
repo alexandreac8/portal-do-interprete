@@ -32,33 +32,59 @@ function diasEntre(isoA, isoB) {
 // detecta links de páginas de listagem genérica em vez de vaga específica
 function linkEhListagem(link) {
   if (!link) return true;
-  const u = link.toLowerCase().replace(/\?.*$/, "").replace(/\/$/, "");
+  let u;
+  try {
+    u = new URL(link.trim());
+  } catch {
+    return true; // url inválida = ruim
+  }
+  const hostname = u.hostname.toLowerCase();
+  const path = u.pathname.replace(/\/$/, "");
+  const pathParts = path.split("/").filter(Boolean);
+  const full = (hostname + path).toLowerCase();
+
+  // só o domínio raiz, sem path significativo: ruim
+  if (pathParts.length === 0) return true;
+
+  // domínios agregadores: SEMPRE precisam de path bem específico
+  const dominiosAgregadores = ["indeed.com", "br.indeed.com", "jooble.org", "br.jooble.org", "glassdoor.com.br", "glassdoor.com", "vagas.com.br", "infojobs.com.br", "catho.com.br", "linkedin.com", "br.linkedin.com", "pciconcursos.com.br", "qconcursos.com", "folha.qconcursos.com", "acheconcursos.com.br", "concursonews.com", "concursosnobrasil.com", "netvagas.com.br", "freelancer.com.br", "employed.com.br"];
+  const ehAgregador = dominiosAgregadores.some(d => hostname === d || hostname.endsWith("." + d));
+
+  if (ehAgregador) {
+    // pra agregador, exige id numérico ou hash no path (ex: linkedin/jobs/view/123, gupy/jobs/123)
+    const temIdEspecifico = /\/(jobs?|vaga|concurso|view|n)\/[a-z0-9_-]{3,}/i.test(path) || /-\d{4,}/.test(path);
+    if (!temIdEspecifico) return true;
+  }
+
   const padroesRuins = [
     /pciconcursos\.com\.br\/professores$/,
-    /pciconcursos\.com\.br\/vagas\/[^/]+$/, // /vagas/interprete-de-libras
+    /pciconcursos\.com\.br\/vagas\/[^/]+$/,
     /pciconcursos\.com\.br\/concursos$/,
+    /pciconcursos\.com\.br\/noticias/,
     /linkedin\.com\/jobs\/[^/]+-vagas$/,
     /linkedin\.com\/jobs\/search/,
     /linkedin\.com\/jobs$/,
     /indeed\.com\/jobs\?/,
     /indeed\.com\/q-/,
-    /indeed\.com\/cmp\//, // página da empresa, não vaga específica
-    /catho\.com\.br\/vagas\/[^/]+\/?$/, // ex: catho.com.br/vagas/interprete-de-libras
+    /indeed\.com\/cmp\//,
+    /catho\.com\.br\/vagas\/[^/]+\/?$/,
     /vagas\.com\.br\/vagas-de-[^/]+\/?$/,
     /infojobs\.com\.br\/vagas-de-[^/]+\.aspx$/,
     /gupy\.io\/?$/,
-    /\.gupy\.io\/jobs\/?$/, // home de jobs da empresa
+    /\.gupy\.io\/jobs\/?$/,
     /trabalheconosco\.[^/]+\/oportunidades\/?$/,
     /trabalheconosco\.[^/]+\/?$/,
-    /glassdoor\.[^/]+\/vaga\//, // pesquisa
+    /glassdoor\.[^/]+\/vaga\//,
     /\/concursos\/?$/,
     /\/vagas\/?$/,
     /\/oportunidades\/?$/,
-    /bancodetalentos\..+\/?$/, // home banco talentos sp
-    /sistemas\.[^/]+\/seletivodocente\/?$/
+    /bancodetalentos\.[^/]+/,
+    /sistemas\.[^/]+\/seletivodocente\/?$/,
+    /jooble\.org\/vagas-de-/,
+    /jooble\.org\/empregos-de-/
   ];
   for (const p of padroesRuins) {
-    if (p.test(u)) return true;
+    if (p.test(full)) return true;
   }
   return false;
 }
